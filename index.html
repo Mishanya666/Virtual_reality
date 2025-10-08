@@ -31,21 +31,28 @@
   <div id="overlay">
     <div id="locationName" style="font-weight: 700; font-size: 16px;">Локация: Париж — Эйфелева башня</div>
     <div style="font-size: 13px; color: #333; margin-top: 6px;">
-      Навигация: WASD — движение, мышь — смотреть. Клик в сцену для активации управления.
+      Навигация: WASD — движение, Shift — бег, Пробел — прыжок, мышь — смотреть. Клик в сцену для активации управления.
     </div>
     <div id="infoBox"></div>
     <div id="pickupCounter">Сувениры: 0</div>
     <div id="compass">
       <button class="btn" data-target="paris">Париж (Эйфель)</button>
+      <button class="btn" data-target="louvre">Лувр</button>
       <button class="btn" data-target="ny">Нью-Йорк (Таймс-сквер)</button>
+      <button class="btn" data-target="centralpark">Центральный парк Нью-Йорка</button>
       <button class="btn" data-target="tokyo">Токио (Сибуя)</button>
+      <button class="btn" data-target="sensoji">Храм Сензодзи</button>
+      <button class="btn" data-target="pyramids">Пирамиды Гизы</button>
+      <button class="btn" data-target="sphinx">Сфинкс</button>
+      <button class="btn" data-target="colosseum">Колизей</button>
+      <button class="btn" data-target="trevi">Фонтан Треви</button>
     </div>
   </div>
 
   <div id="hud">Подойдите к <b>i</b> чтобы увидеть инфо; к порталу — чтобы перейти.</div>
 
   <div id="instructions">
-    Нажмите любую клавишу или кликните внутри сцены, чтобы начать (WASD — двигаться).<br><br>
+    Нажмите любую клавишу или кликните внутри сцены, чтобы начать (WASD — двигаться, Shift — бег, Пробел — прыжок).<br><br>
     Кликните чтобы начать.
   </div>
 
@@ -77,9 +84,11 @@
     controls.addEventListener('unlock', () => instructions.style.display = 'block');
 
     // Движение
-    const move = { forward: false, back: false, left: false, right: false };
+    const move = { forward: false, back: false, left: false, right: false, jump: false, sprint: false };
     let velocity = new THREE.Vector3();
     let direction = new THREE.Vector3();
+    const groundLevel = 1.6; // Уровень земли
+    let isGrounded = true; // Флаг, находится ли игрок на земле
 
     document.addEventListener('keydown', (e) => {
       switch (e.code) {
@@ -87,6 +96,14 @@
         case 'KeyS': move.back = true; break;
         case 'KeyA': move.left = true; break;
         case 'KeyD': move.right = true; break;
+        case 'Space':
+          if (isGrounded) {
+            move.jump = true;
+            velocity.y = 5.0; // Начальная скорость прыжка
+            isGrounded = false;
+          }
+          break;
+        case 'ShiftLeft': move.sprint = true; break;
       }
       if (!audioContext) startAmbientTone();
     });
@@ -97,6 +114,8 @@
         case 'KeyS': move.back = false; break;
         case 'KeyA': move.left = false; break;
         case 'KeyD': move.right = false; break;
+        case 'Space': move.jump = false; break;
+        case 'ShiftLeft': move.sprint = false; break;
       }
     });
 
@@ -166,6 +185,54 @@
             10 + Math.random() * 20
           );
         }
+      } else if (type === 'grass') {
+        ctx.fillStyle = '#228B22';
+        ctx.fillRect(0, 0, 512, 512);
+        for (let i = 0; i < 100; i++) {
+          ctx.fillStyle = '#006400';
+          ctx.fillRect(
+            Math.random() * 512,
+            Math.random() * 512,
+            20 + Math.random() * 40,
+            20 + Math.random() * 40
+          );
+        }
+      } else if (type === 'sand') {
+        ctx.fillStyle = '#EDC9AF';
+        ctx.fillRect(0, 0, 512, 512);
+        for (let i = 0; i < 50; i++) {
+          ctx.fillStyle = '#D2B48C';
+          ctx.fillRect(
+            Math.random() * 512,
+            Math.random() * 512,
+            10 + Math.random() * 20,
+            10 + Math.random() * 20
+          );
+        }
+      } else if (type === 'stone') {
+        ctx.fillStyle = '#A9A9A9';
+        ctx.fillRect(0, 0, 512, 512);
+        for (let i = 0; i < 30; i++) {
+          ctx.fillStyle = '#808080';
+          ctx.fillRect(
+            Math.random() * 512,
+            Math.random() * 512,
+            30 + Math.random() * 60,
+            30 + Math.random() * 60
+          );
+        }
+      } else if (type === 'water') {
+        ctx.fillStyle = '#4682B4';
+        ctx.fillRect(0, 0, 512, 512);
+        for (let i = 0; i < 20; i++) {
+          ctx.fillStyle = '#87CEEB';
+          ctx.fillRect(
+            Math.random() * 512,
+            Math.random() * 512,
+            40 + Math.random() * 80,
+            40 + Math.random() * 80
+          );
+        }
       }
       const tex = new THREE.CanvasTexture(canvas);
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
@@ -173,16 +240,13 @@
       return tex;
     }
 
-    // Сцены
+    // Сцены (без изменений)
     const scenes = {};
     let currentScene = null;
 
-    // Париж (Эйфелева башня)
     function createParisScene() {
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(0xbfeaff);
-
-      // Освещение
       const hemi = new THREE.HemisphereLight(0xfff8e6, 0x444455, 0.8);
       scene.add(hemi);
       const sun = new THREE.DirectionalLight(0xffffff, 0.9);
@@ -190,24 +254,18 @@
       sun.castShadow = true;
       sun.shadow.mapSize.set(512, 512);
       scene.add(sun);
-
-      // Пол (брусчатка)
       const groundGeo = new THREE.PlaneGeometry(60, 60);
       const groundMat = new THREE.MeshStandardMaterial({ map: createTexture('cobblestone') });
       const ground = new THREE.Mesh(groundGeo, groundMat);
       ground.rotation.x = -Math.PI / 2;
       ground.receiveShadow = true;
       scene.add(ground);
-
-      // Эйфелева башня (улучшенная модель из примитивов)
       const towerGroup = new THREE.Group();
       const baseMat = new THREE.MeshStandardMaterial({ color: 0x7a7a7a, metalness: 0.6, roughness: 0.4 });
-
       const base = new THREE.CylinderGeometry(2.2, 2.8, 0.8, 24);
       const baseMesh = new THREE.Mesh(base, baseMat);
       baseMesh.castShadow = true;
       towerGroup.add(baseMesh);
-
       for (let i = 0; i < 4; i++) {
         const pillar = new THREE.CylinderGeometry(0.12, 0.12, 6, 8);
         const pMesh = new THREE.Mesh(pillar, baseMat);
@@ -217,20 +275,16 @@
         pMesh.castShadow = true;
         towerGroup.add(pMesh);
       }
-
       const platform = new THREE.CylinderGeometry(1.3, 1.3, 0.3, 20);
       const platformMesh = new THREE.Mesh(platform, baseMat);
       platformMesh.position.y = 3;
       platformMesh.castShadow = true;
       towerGroup.add(platformMesh);
-
       const topCone = new THREE.ConeGeometry(0.4, 2.2, 12);
       const topMesh = new THREE.Mesh(topCone, baseMat);
       topMesh.position.set(0, 6.2, 0);
       topMesh.castShadow = true;
       towerGroup.add(topMesh);
-
-      // Добавляем решётчатую структуру (имитация)
       for (let i = 0; i < 8; i++) {
         const bar = new THREE.CylinderGeometry(0.05, 0.05, 3, 8);
         const barMesh = new THREE.Mesh(bar, baseMat);
@@ -243,11 +297,8 @@
         barMesh.castShadow = true;
         towerGroup.add(barMesh);
       }
-
       towerGroup.position.set(0, 0.4, -2);
       scene.add(towerGroup);
-
-      // Инфо-иконка
       const infoPos = new THREE.Vector3(2.6, 1.2, -1.5);
       const infoGeom = new THREE.SphereGeometry(0.18, 12, 12);
       const infoMat = new THREE.MeshStandardMaterial({ color: 0x2a9df4, emissive: 0x1a6fb2, metalness: 0.2, roughness: 0.6 });
@@ -255,7 +306,6 @@
       infoMesh.position.copy(infoPos);
       infoMesh.castShadow = true;
       scene.add(infoMesh);
-
       const canvas = document.createElement('canvas');
       canvas.width = canvas.height = 128;
       const ctx = canvas.getContext('2d');
@@ -272,8 +322,6 @@
       sprite.scale.set(0.6, 0.6, 1);
       sprite.position.copy(infoPos).add(new THREE.Vector3(0, 0.45, 0));
       scene.add(sprite);
-
-      // Сувенир
       const souvenir = new THREE.Mesh(
         new THREE.BoxGeometry(0.28, 0.18, 0.28),
         new THREE.MeshStandardMaterial({ color: 0xffcc00 })
@@ -282,8 +330,6 @@
       souvenir.castShadow = true;
       souvenir.name = 'souvenir';
       scene.add(souvenir);
-
-      // Скамейка
       const bench = new THREE.Mesh(
         new THREE.BoxGeometry(1.6, 0.12, 0.3),
         new THREE.MeshStandardMaterial({ color: 0x8b5a3c })
@@ -291,8 +337,6 @@
       bench.position.set(-2.2, 0.12, -0.8);
       bench.receiveShadow = true;
       scene.add(bench);
-
-      // Портал
       const portal = new THREE.Mesh(
         new THREE.TorusGeometry(0.9, 0.14, 16, 60),
         new THREE.MeshStandardMaterial({ color: 0x1980ff, emissive: 0x104f80, metalness: 0.3, roughness: 0.2 })
@@ -301,13 +345,10 @@
       portal.castShadow = false;
       portal.name = 'portal';
       scene.add(portal);
-
-      // Небо
       const skyGeo = new THREE.SphereGeometry(200, 32, 15);
       const skyMat = new THREE.MeshBasicMaterial({ color: 0xbfeaff, side: THREE.BackSide });
       const sky = new THREE.Mesh(skyGeo, skyMat);
       scene.add(sky);
-
       return {
         scene,
         infoPos,
@@ -323,12 +364,9 @@
       };
     }
 
-    // Нью-Йорк (Таймс-сквер)
-    function createNYScene() {
+    function createLouvreScene() {
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x1c2526);
-
-      // Освещение
+      scene.background = new THREE.Color(0xbfeaff);
       const hemi = new THREE.HemisphereLight(0xfff8e6, 0x444455, 0.8);
       scene.add(hemi);
       const sun = new THREE.DirectionalLight(0xffffff, 0.9);
@@ -336,39 +374,28 @@
       sun.castShadow = true;
       sun.shadow.mapSize.set(512, 512);
       scene.add(sun);
-
-      // Пол (асфальт)
       const groundGeo = new THREE.PlaneGeometry(60, 60);
-      const groundMat = new THREE.MeshStandardMaterial({ map: createTexture('asphalt') });
+      const groundMat = new THREE.MeshStandardMaterial({ map: createTexture('cobblestone') });
       const ground = new THREE.Mesh(groundGeo, groundMat);
       ground.rotation.x = -Math.PI / 2;
       ground.receiveShadow = true;
       scene.add(ground);
-
-      // Билборды и здания
-      const billboardMat = new THREE.MeshStandardMaterial({ color: 0xff5555, emissive: 0xaa3333, emissiveIntensity: 0.5 });
-      for (let i = 0; i < 3; i++) {
-        const billboard = new THREE.Mesh(
-          new THREE.BoxGeometry(4, 2, 0.2),
-          billboardMat
-        );
-        billboard.position.set(-5 + i * 5, 3, -10);
-        billboard.castShadow = true;
-        scene.add(billboard);
-      }
-
-      const buildingMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.2, roughness: 0.8 });
-      for (let i = 0; i < 2; i++) {
-        const building = new THREE.Mesh(
-          new THREE.BoxGeometry(8, 10 + i * 5, 4),
-          buildingMat
-        );
-        building.position.set(-8 + i * 16, 5 + i * 2.5, -12);
-        building.castShadow = true;
-        scene.add(building);
-      }
-
-      // Инфо-иконка
+      const buildingMat = new THREE.MeshStandardMaterial({ color: 0xbebebe, metalness: 0.1, roughness: 0.7 });
+      const mainBuilding = new THREE.Mesh(
+        new THREE.BoxGeometry(10, 4, 5),
+        buildingMat
+      );
+      mainBuilding.position.set(0, 2, -5);
+      mainBuilding.castShadow = true;
+      scene.add(mainBuilding);
+      const pyramidMat = new THREE.MeshStandardMaterial({ color: 0xadd8e6, transparent: true, opacity: 0.6, metalness: 0.5, roughness: 0.3 });
+      const pyramid = new THREE.Mesh(
+        new THREE.ConeGeometry(2, 3, 4),
+        pyramidMat
+      );
+      pyramid.position.set(0, 1.5, -2);
+      pyramid.castShadow = true;
+      scene.add(pyramid);
       const infoPos = new THREE.Vector3(2.6, 1.2, -1.5);
       const infoGeom = new THREE.SphereGeometry(0.18, 12, 12);
       const infoMat = new THREE.MeshStandardMaterial({ color: 0x2a9df4, emissive: 0x1a6fb2, metalness: 0.2, roughness: 0.6 });
@@ -376,7 +403,6 @@
       infoMesh.position.copy(infoPos);
       infoMesh.castShadow = true;
       scene.add(infoMesh);
-
       const canvas = document.createElement('canvas');
       canvas.width = canvas.height = 128;
       const ctx = canvas.getContext('2d');
@@ -393,8 +419,6 @@
       sprite.scale.set(0.6, 0.6, 1);
       sprite.position.copy(infoPos).add(new THREE.Vector3(0, 0.45, 0));
       scene.add(sprite);
-
-      // Сувенир
       const souvenir = new THREE.Mesh(
         new THREE.BoxGeometry(0.28, 0.18, 0.28),
         new THREE.MeshStandardMaterial({ color: 0xffcc00 })
@@ -403,8 +427,6 @@
       souvenir.castShadow = true;
       souvenir.name = 'souvenir';
       scene.add(souvenir);
-
-      // Портал
       const portal = new THREE.Mesh(
         new THREE.TorusGeometry(0.9, 0.14, 16, 60),
         new THREE.MeshStandardMaterial({ color: 0x1980ff, emissive: 0x104f80, metalness: 0.3, roughness: 0.2 })
@@ -413,13 +435,104 @@
       portal.castShadow = false;
       portal.name = 'portal';
       scene.add(portal);
+      const skyGeo = new THREE.SphereGeometry(200, 32, 15);
+      const skyMat = new THREE.MeshBasicMaterial({ color: 0xbfeaff, side: THREE.BackSide });
+      const sky = new THREE.Mesh(skyGeo, skyMat);
+      scene.add(sky);
+      return {
+        scene,
+        infoPos,
+        portal,
+        souvenir,
+        audioTriggerPos: new THREE.Vector3(-0.8, 0.5, 2.6),
+        audioTriggerRadius: 3.0,
+        portalTriggerPos: portal.position.clone(),
+        portalTriggerRadius: 1.4,
+        infoMesh,
+        sprite,
+        infoText: '<b>Лувр</b><br>Один из крупнейших музеев мира в Париже. Подойдите к порталу или соберите сувенир.'
+      };
+    }
 
-      // Небо
+    function createNYScene() {
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x1c2526);
+      const hemi = new THREE.HemisphereLight(0xfff8e6, 0x444455, 0.8);
+      scene.add(hemi);
+      const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+      sun.position.set(5, 10, 7);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(512, 512);
+      scene.add(sun);
+      const groundGeo = new THREE.PlaneGeometry(60, 60);
+      const groundMat = new THREE.MeshStandardMaterial({ map: createTexture('asphalt') });
+      const ground = new THREE.Mesh(groundGeo, groundMat);
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+      const billboardMat = new THREE.MeshStandardMaterial({ color: 0xff5555, emissive: 0xaa3333, emissiveIntensity: 0.5 });
+      for (let i = 0; i < 3; i++) {
+        const billboard = new THREE.Mesh(
+          new THREE.BoxGeometry(4, 2, 0.2),
+          billboardMat
+        );
+        billboard.position.set(-5 + i * 5, 3, -10);
+        billboard.castShadow = true;
+        scene.add(billboard);
+      }
+      const buildingMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.2, roughness: 0.8 });
+      for (let i = 0; i < 2; i++) {
+        const building = new THREE.Mesh(
+          new THREE.BoxGeometry(8, 10 + i * 5, 4),
+          buildingMat
+        );
+        building.position.set(-8 + i * 16, 5 + i * 2.5, -12);
+        building.castShadow = true;
+        scene.add(building);
+      }
+      const infoPos = new THREE.Vector3(2.6, 1.2, -1.5);
+      const infoGeom = new THREE.SphereGeometry(0.18, 12, 12);
+      const infoMat = new THREE.MeshStandardMaterial({ color: 0x2a9df4, emissive: 0x1a6fb2, metalness: 0.2, roughness: 0.6 });
+      const infoMesh = new THREE.Mesh(infoGeom, infoMat);
+      infoMesh.position.copy(infoPos);
+      infoMesh.castShadow = true;
+      scene.add(infoMesh);
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(255,255,255,0)';
+      ctx.fillRect(0, 0, 128, 128);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 90px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('i', 64, 70);
+      const spriteTex = new THREE.CanvasTexture(canvas);
+      const spriteMat = new THREE.SpriteMaterial({ map: spriteTex, transparent: true });
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.scale.set(0.6, 0.6, 1);
+      sprite.position.copy(infoPos).add(new THREE.Vector3(0, 0.45, 0));
+      scene.add(sprite);
+      const souvenir = new THREE.Mesh(
+        new THREE.BoxGeometry(0.28, 0.18, 0.28),
+        new THREE.MeshStandardMaterial({ color: 0xffcc00 })
+      );
+      souvenir.position.set(-2.2, 0.16, -0.8);
+      souvenir.castShadow = true;
+      souvenir.name = 'souvenir';
+      scene.add(souvenir);
+      const portal = new THREE.Mesh(
+        new THREE.TorusGeometry(0.9, 0.14, 16, 60),
+        new THREE.MeshStandardMaterial({ color: 0x1980ff, emissive: 0x104f80, metalness: 0.3, roughness: 0.2 })
+      );
+      portal.position.set(4.8, 1.0, -2);
+      portal.castShadow = false;
+      portal.name = 'portal';
+      scene.add(portal);
       const skyGeo = new THREE.SphereGeometry(200, 32, 15);
       const skyMat = new THREE.MeshBasicMaterial({ color: 0x1c2526, side: THREE.BackSide });
       const sky = new THREE.Mesh(skyGeo, skyMat);
       scene.add(sky);
-
       return {
         scene,
         infoPos,
@@ -435,12 +548,9 @@
       };
     }
 
-    // Токио (перекрёсток Сибуя)
-    function createTokyoScene() {
+    function createCentralParkScene() {
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x2a2a3a);
-
-      // Освещение
+      scene.background = new THREE.Color(0x87ceeb);
       const hemi = new THREE.HemisphereLight(0xfff8e6, 0x444455, 0.8);
       scene.add(hemi);
       const sun = new THREE.DirectionalLight(0xffffff, 0.9);
@@ -448,49 +558,37 @@
       sun.castShadow = true;
       sun.shadow.mapSize.set(512, 512);
       scene.add(sun);
-
-      // Пол (асфальт с разметкой)
       const groundGeo = new THREE.PlaneGeometry(60, 60);
-      const groundMat = new THREE.MeshStandardMaterial({ map: createTexture('asphalt') });
+      const groundMat = new THREE.MeshStandardMaterial({ map: createTexture('grass') });
       const ground = new THREE.Mesh(groundGeo, groundMat);
       ground.rotation.x = -Math.PI / 2;
       ground.receiveShadow = true;
       scene.add(ground);
-
-      // Разметка перекрёстка
-      const stripeMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-      for (let i = -5; i <= 5; i += 2) {
-        const stripe = new THREE.Mesh(
-          new THREE.BoxGeometry(10, 0.01, 0.5),
-          stripeMat
+      const treeMat = new THREE.MeshStandardMaterial({ color: 0x228b22 });
+      for (let i = 0; i < 5; i++) {
+        const trunk = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.2, 0.3, 2, 8),
+          new THREE.MeshStandardMaterial({ color: 0x8b4513 })
         );
-        stripe.position.set(i, 0.02, 0);
-        stripe.receiveShadow = true;
-        scene.add(stripe);
-      }
-
-      // Здания
-      const buildingMat = new THREE.MeshStandardMaterial({ color: 0x666666, metalness: 0.2, roughness: 0.8 });
-      for (let i = 0; i < 3; i++) {
-        const building = new THREE.Mesh(
-          new THREE.BoxGeometry(6, 8 + i * 3, 4),
-          buildingMat
+        trunk.position.set(-5 + i * 3, 1, -5);
+        trunk.castShadow = true;
+        scene.add(trunk);
+        const foliage = new THREE.Mesh(
+          new THREE.ConeGeometry(1.5, 3, 8),
+          treeMat
         );
-        building.position.set(-10 + i * 10, 4 + i * 1.5, -10);
-        building.castShadow = true;
-        scene.add(building);
+        foliage.position.set(-5 + i * 3, 2.5, -5);
+        foliage.castShadow = true;
+        scene.add(foliage);
       }
-
-      // Вывеска
-      const sign = new THREE.Mesh(
-        new THREE.BoxGeometry(3, 1.5, 0.2),
-        new THREE.MeshStandardMaterial({ color: 0x00ffcc, emissive: 0x00aa88, emissiveIntensity: 0.5 })
+      const lake = new THREE.Mesh(
+        new THREE.CircleGeometry(4, 32),
+        new THREE.MeshStandardMaterial({ color: 0x4682b4, side: THREE.DoubleSide })
       );
-      sign.position.set(0, 3, -8);
-      sign.castShadow = true;
-      scene.add(sign);
-
-      // Инфо-иконка
+      lake.rotation.x = -Math.PI / 2;
+      lake.position.set(0, 0.01, -10);
+      lake.receiveShadow = true;
+      scene.add(lake);
       const infoPos = new THREE.Vector3(2.6, 1.2, -1.5);
       const infoGeom = new THREE.SphereGeometry(0.18, 12, 12);
       const infoMat = new THREE.MeshStandardMaterial({ color: 0x2a9df4, emissive: 0x1a6fb2, metalness: 0.2, roughness: 0.6 });
@@ -498,7 +596,6 @@
       infoMesh.position.copy(infoPos);
       infoMesh.castShadow = true;
       scene.add(infoMesh);
-
       const canvas = document.createElement('canvas');
       canvas.width = canvas.height = 128;
       const ctx = canvas.getContext('2d');
@@ -515,8 +612,6 @@
       sprite.scale.set(0.6, 0.6, 1);
       sprite.position.copy(infoPos).add(new THREE.Vector3(0, 0.45, 0));
       scene.add(sprite);
-
-      // Сувенир
       const souvenir = new THREE.Mesh(
         new THREE.BoxGeometry(0.28, 0.18, 0.28),
         new THREE.MeshStandardMaterial({ color: 0xffcc00 })
@@ -525,8 +620,6 @@
       souvenir.castShadow = true;
       souvenir.name = 'souvenir';
       scene.add(souvenir);
-
-      // Портал
       const portal = new THREE.Mesh(
         new THREE.TorusGeometry(0.9, 0.14, 16, 60),
         new THREE.MeshStandardMaterial({ color: 0x1980ff, emissive: 0x104f80, metalness: 0.3, roughness: 0.2 })
@@ -535,13 +628,111 @@
       portal.castShadow = false;
       portal.name = 'portal';
       scene.add(portal);
+      const skyGeo = new THREE.SphereGeometry(200, 32, 15);
+      const skyMat = new THREE.MeshBasicMaterial({ color: 0x87ceeb, side: THREE.BackSide });
+      const sky = new THREE.Mesh(skyGeo, skyMat);
+      scene.add(sky);
+      return {
+        scene,
+        infoPos,
+        portal,
+        souvenir,
+        audioTriggerPos: new THREE.Vector3(-0.8, 0.5, 2.6),
+        audioTriggerRadius: 3.0,
+        portalTriggerPos: portal.position.clone(),
+        portalTriggerRadius: 1.4,
+        infoMesh,
+        sprite,
+        infoText: '<b>Центральный парк Нью-Йорка</b><br>Оазис в сердце города. Соберите сувенир и перейдите дальше.'
+      };
+    }
 
-      // Небо
+    function createTokyoScene() {
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x2a2a3a);
+      const hemi = new THREE.HemisphereLight(0xfff8e6, 0x444455, 0.8);
+      scene.add(hemi);
+      const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+      sun.position.set(5, 10, 7);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(512, 512);
+      scene.add(sun);
+      const groundGeo = new THREE.PlaneGeometry(60, 60);
+      const groundMat = new THREE.MeshStandardMaterial({ map: createTexture('asphalt') });
+      const ground = new THREE.Mesh(groundGeo, groundMat);
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+      const stripeMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+      for (let i = -5; i <= 5; i += 2) {
+        const stripe = new THREE.Mesh(
+          new THREE.BoxGeometry(10, 0.01, 0.5),
+          stripeMat
+        );
+        stripe.position.set(i, 0.02, 0);
+        stripe.receiveShadow = true;
+        scene.add(stripe);
+      }
+      const buildingMat = new THREE.MeshStandardMaterial({ color: 0x666666, metalness: 0.2, roughness: 0.8 });
+      for (let i = 0; i < 3; i++) {
+        const building = new THREE.Mesh(
+          new THREE.BoxGeometry(6, 8 + i * 3, 4),
+          buildingMat
+        );
+        building.position.set(-10 + i * 10, 4 + i * 1.5, -10);
+        building.castShadow = true;
+        scene.add(building);
+      }
+      const sign = new THREE.Mesh(
+        new THREE.BoxGeometry(3, 1.5, 0.2),
+        new THREE.MeshStandardMaterial({ color: 0x00ffcc, emissive: 0x00aa88, emissiveIntensity: 0.5 })
+      );
+      sign.position.set(0, 3, -8);
+      sign.castShadow = true;
+      scene.add(sign);
+      const infoPos = new THREE.Vector3(2.6, 1.2, -1.5);
+      const infoGeom = new THREE.SphereGeometry(0.18, 12, 12);
+      const infoMat = new THREE.MeshStandardMaterial({ color: 0x2a9df4, emissive: 0x1a6fb2, metalness: 0.2, roughness: 0.6 });
+      const infoMesh = new THREE.Mesh(infoGeom, infoMat);
+      infoMesh.position.copy(infoPos);
+      infoMesh.castShadow = true;
+      scene.add(infoMesh);
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(255,255,255,0)';
+      ctx.fillRect(0, 0, 128, 128);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 90px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('i', 64, 70);
+      const spriteTex = new THREE.CanvasTexture(canvas);
+      const spriteMat = new THREE.SpriteMaterial({ map: spriteTex, transparent: true });
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.scale.set(0.6, 0.6, 1);
+      sprite.position.copy(infoPos).add(new THREE.Vector3(0, 0.45, 0));
+      scene.add(sprite);
+      const souvenir = new THREE.Mesh(
+        new THREE.BoxGeometry(0.28, 0.18, 0.28),
+        new THREE.MeshStandardMaterial({ color: 0xffcc00 })
+      );
+      souvenir.position.set(-2.2, 0.16, -0.8);
+      souvenir.castShadow = true;
+      souvenir.name = 'souvenir';
+      scene.add(souvenir);
+      const portal = new THREE.Mesh(
+        new THREE.TorusGeometry(0.9, 0.14, 16, 60),
+        new THREE.MeshStandardMaterial({ color: 0x1980ff, emissive: 0x104f80, metalness: 0.3, roughness: 0.2 })
+      );
+      portal.position.set(4.8, 1.0, -2);
+      portal.castShadow = false;
+      portal.name = 'portal';
+      scene.add(portal);
       const skyGeo = new THREE.SphereGeometry(200, 32, 15);
       const skyMat = new THREE.MeshBasicMaterial({ color: 0x2a2a3a, side: THREE.BackSide });
       const sky = new THREE.Mesh(skyGeo, skyMat);
       scene.add(sky);
-
       return {
         scene,
         infoPos,
@@ -557,10 +748,484 @@
       };
     }
 
+    function createSensojiScene() {
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xffd700);
+      const hemi = new THREE.HemisphereLight(0xfff8e6, 0x444455, 0.8);
+      scene.add(hemi);
+      const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+      sun.position.set(5, 10, 7);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(512, 512);
+      scene.add(sun);
+      const groundGeo = new THREE.PlaneGeometry(60, 60);
+      const groundMat = new THREE.MeshStandardMaterial({ map: createTexture('stone') });
+      const ground = new THREE.Mesh(groundGeo, groundMat);
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+      const pagodaMat = new THREE.MeshStandardMaterial({ color: 0xff0000, metalness: 0.1, roughness: 0.5 });
+      for (let i = 0; i < 5; i++) {
+        const tier = new THREE.Mesh(
+          new THREE.BoxGeometry(3 - i * 0.5, 1, 3 - i * 0.5),
+          pagodaMat
+        );
+        tier.position.set(0, i + 0.5, -5);
+        tier.castShadow = true;
+        scene.add(tier);
+      }
+      const gate = new THREE.Mesh(
+        new THREE.BoxGeometry(4, 4, 0.5),
+        new THREE.MeshStandardMaterial({ color: 0xff4500 })
+      );
+      gate.position.set(0, 2, -10);
+      gate.castShadow = true;
+      scene.add(gate);
+      const infoPos = new THREE.Vector3(2.6, 1.2, -1.5);
+      const infoGeom = new THREE.SphereGeometry(0.18, 12, 12);
+      const infoMat = new THREE.MeshStandardMaterial({ color: 0x2a9df4, emissive: 0x1a6fb2, metalness: 0.2, roughness: 0.6 });
+      const infoMesh = new THREE.Mesh(infoGeom, infoMat);
+      infoMesh.position.copy(infoPos);
+      infoMesh.castShadow = true;
+      scene.add(infoMesh);
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(255,255,255,0)';
+      ctx.fillRect(0, 0, 128, 128);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 90px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('i', 64, 70);
+      const spriteTex = new THREE.CanvasTexture(canvas);
+      const spriteMat = new THREE.SpriteMaterial({ map: spriteTex, transparent: true });
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.scale.set(0.6, 0.6, 1);
+      sprite.position.copy(infoPos).add(new THREE.Vector3(0, 0.45, 0));
+      scene.add(sprite);
+      const souvenir = new THREE.Mesh(
+        new THREE.BoxGeometry(0.28, 0.18, 0.28),
+        new THREE.MeshStandardMaterial({ color: 0xffcc00 })
+      );
+      souvenir.position.set(-2.2, 0.16, -0.8);
+      souvenir.castShadow = true;
+      souvenir.name = 'souvenir';
+      scene.add(souvenir);
+      const portal = new THREE.Mesh(
+        new THREE.TorusGeometry(0.9, 0.14, 16, 60),
+        new THREE.MeshStandardMaterial({ color: 0x1980ff, emissive: 0x104f80, metalness: 0.3, roughness: 0.2 })
+      );
+      portal.position.set(4.8, 1.0, -2);
+      portal.castShadow = false;
+      portal.name = 'portal';
+      scene.add(portal);
+      const skyGeo = new THREE.SphereGeometry(200, 32, 15);
+      const skyMat = new THREE.MeshBasicMaterial({ color: 0xffd700, side: THREE.BackSide });
+      const sky = new THREE.Mesh(skyGeo, skyMat);
+      scene.add(sky);
+      return {
+        scene,
+        infoPos,
+        portal,
+        souvenir,
+        audioTriggerPos: new THREE.Vector3(-0.8, 0.5, 2.6),
+        audioTriggerRadius: 3.0,
+        portalTriggerPos: portal.position.clone(),
+        portalTriggerRadius: 1.4,
+        infoMesh,
+        sprite,
+        infoText: '<b>Храм Сензодзи</b><br>Древний храм в Токио. Соберите сувенир и перейдите дальше.'
+      };
+    }
+
+    function createPyramidsScene() {
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xffdab9);
+      const hemi = new THREE.HemisphereLight(0xfff8e6, 0x444455, 0.8);
+      scene.add(hemi);
+      const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+      sun.position.set(5, 10, 7);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(512, 512);
+      scene.add(sun);
+      const groundGeo = new THREE.PlaneGeometry(60, 60);
+      const groundMat = new THREE.MeshStandardMaterial({ map: createTexture('sand') });
+      const ground = new THREE.Mesh(groundGeo, groundMat);
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+      const pyramidMat = new THREE.MeshStandardMaterial({ color: 0xcd853f, metalness: 0.1, roughness: 0.8 });
+      const pyramid1 = new THREE.Mesh(
+        new THREE.ConeGeometry(3, 4, 4),
+        pyramidMat
+      );
+      pyramid1.position.set(0, 2, -5);
+      pyramid1.castShadow = true;
+      scene.add(pyramid1);
+      const pyramid2 = new THREE.Mesh(
+        new THREE.ConeGeometry(2.5, 3.5, 4),
+        pyramidMat
+      );
+      pyramid2.position.set(5, 1.75, -10);
+      pyramid2.castShadow = true;
+      scene.add(pyramid2);
+      const pyramid3 = new THREE.Mesh(
+        new THREE.ConeGeometry(2, 3, 4),
+        pyramidMat
+      );
+      pyramid3.position.set(-5, 1.5, -10);
+      pyramid3.castShadow = true;
+      scene.add(pyramid3);
+      const infoPos = new THREE.Vector3(2.6, 1.2, -1.5);
+      const infoGeom = new THREE.SphereGeometry(0.18, 12, 12);
+      const infoMat = new THREE.MeshStandardMaterial({ color: 0x2a9df4, emissive: 0x1a6fb2, metalness: 0.2, roughness: 0.6 });
+      const infoMesh = new THREE.Mesh(infoGeom, infoMat);
+      infoMesh.position.copy(infoPos);
+      infoMesh.castShadow = true;
+      scene.add(infoMesh);
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(255,255,255,0)';
+      ctx.fillRect(0, 0, 128, 128);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 90px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('i', 64, 70);
+      const spriteTex = new THREE.CanvasTexture(canvas);
+      const spriteMat = new THREE.SpriteMaterial({ map: spriteTex, transparent: true });
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.scale.set(0.6, 0.6, 1);
+      sprite.position.copy(infoPos).add(new THREE.Vector3(0, 0.45, 0));
+      scene.add(sprite);
+      const souvenir = new THREE.Mesh(
+        new THREE.BoxGeometry(0.28, 0.18, 0.28),
+        new THREE.MeshStandardMaterial({ color: 0xffcc00 })
+      );
+      souvenir.position.set(-2.2, 0.16, -0.8);
+      souvenir.castShadow = true;
+      souvenir.name = 'souvenir';
+      scene.add(souvenir);
+      const portal = new THREE.Mesh(
+        new THREE.TorusGeometry(0.9, 0.14, 16, 60),
+        new THREE.MeshStandardMaterial({ color: 0x1980ff, emissive: 0x104f80, metalness: 0.3, roughness: 0.2 })
+      );
+      portal.position.set(4.8, 1.0, -2);
+      portal.castShadow = false;
+      portal.name = 'portal';
+      scene.add(portal);
+      const skyGeo = new THREE.SphereGeometry(200, 32, 15);
+      const skyMat = new THREE.MeshBasicMaterial({ color: 0xffdab9, side: THREE.BackSide });
+      const sky = new THREE.Mesh(skyGeo, skyMat);
+      scene.add(sky);
+      return {
+        scene,
+        infoPos,
+        portal,
+        souvenir,
+        audioTriggerPos: new THREE.Vector3(-0.8, 0.5, 2.6),
+        audioTriggerRadius: 3.0,
+        portalTriggerPos: portal.position.clone(),
+        portalTriggerRadius: 1.4,
+        infoMesh,
+        sprite,
+        infoText: '<b>Пирамиды Гизы</b><br>Древние чудеса Египта. Соберите сувенир и перейдите дальше.'
+      };
+    }
+
+    function createSphinxScene() {
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xffdab9);
+      const hemi = new THREE.HemisphereLight(0xfff8e6, 0x444455, 0.8);
+      scene.add(hemi);
+      const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+      sun.position.set(5, 10, 7);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(512, 512);
+      scene.add(sun);
+      const groundGeo = new THREE.PlaneGeometry(60, 60);
+      const groundMat = new THREE.MeshStandardMaterial({ map: createTexture('sand') });
+      const ground = new THREE.Mesh(groundGeo, groundMat);
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+      const sphinxMat = new THREE.MeshStandardMaterial({ color: 0xcd853f, metalness: 0.1, roughness: 0.8 });
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(4, 1.5, 8),
+        sphinxMat
+      );
+      body.position.set(0, 0.75, -5);
+      body.castShadow = true;
+      scene.add(body);
+      const head = new THREE.Mesh(
+        new THREE.BoxGeometry(1.5, 1.5, 1.5),
+        sphinxMat
+      );
+      head.position.set(0, 2, -2);
+      head.castShadow = true;
+      scene.add(head);
+      const infoPos = new THREE.Vector3(2.6, 1.2, -1.5);
+      const infoGeom = new THREE.SphereGeometry(0.18, 12, 12);
+      const infoMat = new THREE.MeshStandardMaterial({ color: 0x2a9df4, emissive: 0x1a6fb2, metalness: 0.2, roughness: 0.6 });
+      const infoMesh = new THREE.Mesh(infoGeom, infoMat);
+      infoMesh.position.copy(infoPos);
+      infoMesh.castShadow = true;
+      scene.add(infoMesh);
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(255,255,255,0)';
+      ctx.fillRect(0, 0, 128, 128);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 90px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('i', 64, 70);
+      const spriteTex = new THREE.CanvasTexture(canvas);
+      const spriteMat = new THREE.SpriteMaterial({ map: spriteTex, transparent: true });
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.scale.set(0.6, 0.6, 1);
+      sprite.position.copy(infoPos).add(new THREE.Vector3(0, 0.45, 0));
+      scene.add(sprite);
+      const souvenir = new THREE.Mesh(
+        new THREE.BoxGeometry(0.28, 0.18, 0.28),
+        new THREE.MeshStandardMaterial({ color: 0xffcc00 })
+      );
+      souvenir.position.set(-2.2, 0.16, -0.8);
+      souvenir.castShadow = true;
+      souvenir.name = 'souvenir';
+      scene.add(souvenir);
+      const portal = new THREE.Mesh(
+        new THREE.TorusGeometry(0.9, 0.14, 16, 60),
+        new THREE.MeshStandardMaterial({ color: 0x1980ff, emissive: 0x104f80, metalness: 0.3, roughness: 0.2 })
+      );
+      portal.position.set(4.8, 1.0, -2);
+      portal.castShadow = false;
+      portal.name = 'portal';
+      scene.add(portal);
+      const skyGeo = new THREE.SphereGeometry(200, 32, 15);
+      const skyMat = new THREE.MeshBasicMaterial({ color: 0xffdab9, side: THREE.BackSide });
+      const sky = new THREE.Mesh(skyGeo, skyMat);
+      scene.add(sky);
+      return {
+        scene,
+        infoPos,
+        portal,
+        souvenir,
+        audioTriggerPos: new THREE.Vector3(-0.8, 0.5, 2.6),
+        audioTriggerRadius: 3.0,
+        portalTriggerPos: portal.position.clone(),
+        portalTriggerRadius: 1.4,
+        infoMesh,
+        sprite,
+        infoText: '<b>Сфинкс</b><br>Загадочный страж пирамид. Соберите сувенир и перейдите дальше.'
+      };
+    }
+
+    function createColosseumScene() {
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xbfeaff);
+      const hemi = new THREE.HemisphereLight(0xfff8e6, 0x444455, 0.8);
+      scene.add(hemi);
+      const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+      sun.position.set(5, 10, 7);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(512, 512);
+      scene.add(sun);
+      const groundGeo = new THREE.PlaneGeometry(60, 60);
+      const groundMat = new THREE.MeshStandardMaterial({ map: createTexture('stone') });
+      const ground = new THREE.Mesh(groundGeo, groundMat);
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+      const colosseumMat = new THREE.MeshStandardMaterial({ color: 0xa0522d, metalness: 0.1, roughness: 0.8 });
+      const outerRing = new THREE.Mesh(
+        new THREE.CylinderGeometry(5, 5, 4, 32),
+        colosseumMat
+      );
+      outerRing.position.set(0, 2, -5);
+      outerRing.castShadow = true;
+      scene.add(outerRing);
+      const innerRing = new THREE.Mesh(
+        new THREE.CylinderGeometry(4, 4, 3, 32),
+        colosseumMat
+      );
+      innerRing.position.set(0, 1.5, -5);
+      innerRing.castShadow = true;
+      scene.add(innerRing);
+      for (let i = 0; i < 16; i++) {
+        const arch = new THREE.Mesh(
+          new THREE.BoxGeometry(0.5, 1, 0.5),
+          colosseumMat
+        );
+        const angle = i * Math.PI / 8;
+        arch.position.set(Math.cos(angle) * 4.5, 2, Math.sin(angle) * 4.5 - 5);
+        arch.castShadow = true;
+        scene.add(arch);
+      }
+      const infoPos = new THREE.Vector3(2.6, 1.2, -1.5);
+      const infoGeom = new THREE.SphereGeometry(0.18, 12, 12);
+      const infoMat = new THREE.MeshStandardMaterial({ color: 0x2a9df4, emissive: 0x1a6fb2, metalness: 0.2, roughness: 0.6 });
+      const infoMesh = new THREE.Mesh(infoGeom, infoMat);
+      infoMesh.position.copy(infoPos);
+      infoMesh.castShadow = true;
+      scene.add(infoMesh);
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(255,255,255,0)';
+      ctx.fillRect(0, 0, 128, 128);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 90px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('i', 64, 70);
+      const spriteTex = new THREE.CanvasTexture(canvas);
+      const spriteMat = new THREE.SpriteMaterial({ map: spriteTex, transparent: true });
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.scale.set(0.6, 0.6, 1);
+      sprite.position.copy(infoPos).add(new THREE.Vector3(0, 0.45, 0));
+      scene.add(sprite);
+      const souvenir = new THREE.Mesh(
+        new THREE.BoxGeometry(0.28, 0.18, 0.28),
+        new THREE.MeshStandardMaterial({ color: 0xffcc00 })
+      );
+      souvenir.position.set(-2.2, 0.16, -0.8);
+      souvenir.castShadow = true;
+      souvenir.name = 'souvenir';
+      scene.add(souvenir);
+      const portal = new THREE.Mesh(
+        new THREE.TorusGeometry(0.9, 0.14, 16, 60),
+        new THREE.MeshStandardMaterial({ color: 0x1980ff, emissive: 0x104f80, metalness: 0.3, roughness: 0.2 })
+      );
+      portal.position.set(4.8, 1.0, -2);
+      portal.castShadow = false;
+      portal.name = 'portal';
+      scene.add(portal);
+      const skyGeo = new THREE.SphereGeometry(200, 32, 15);
+      const skyMat = new THREE.MeshBasicMaterial({ color: 0xbfeaff, side: THREE.BackSide });
+      const sky = new THREE.Mesh(skyGeo, skyMat);
+      scene.add(sky);
+      return {
+        scene,
+        infoPos,
+        portal,
+        souvenir,
+        audioTriggerPos: new THREE.Vector3(-0.8, 0.5, 2.6),
+        audioTriggerRadius: 3.0,
+        portalTriggerPos: portal.position.clone(),
+        portalTriggerRadius: 1.4,
+        infoMesh,
+        sprite,
+        infoText: '<b>Колизей</b><br>Древний амфитеатр в Риме. Соберите сувенир и перейдите дальше.'
+      };
+    }
+
+    function createTreviScene() {
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xbfeaff);
+      const hemi = new THREE.HemisphereLight(0xfff8e6, 0x444455, 0.8);
+      scene.add(hemi);
+      const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+      sun.position.set(5, 10, 7);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(512, 512);
+      scene.add(sun);
+      const groundGeo = new THREE.PlaneGeometry(60, 60);
+      const groundMat = new THREE.MeshStandardMaterial({ map: createTexture('stone') });
+      const ground = new THREE.Mesh(groundGeo, groundMat);
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+      const pool = new THREE.Mesh(
+        new THREE.CircleGeometry(5, 32),
+        new THREE.MeshStandardMaterial({ color: 0x4682b4, side: THREE.DoubleSide })
+      );
+      pool.rotation.x = -Math.PI / 2;
+      pool.position.set(0, 0.01, -5);
+      pool.receiveShadow = true;
+      scene.add(pool);
+      const statueMat = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, metalness: 0.2, roughness: 0.5 });
+      for (let i = 0; i < 3; i++) {
+        const statue = new THREE.Mesh(
+          new THREE.BoxGeometry(1, 3, 1),
+          statueMat
+        );
+        statue.position.set(-2 + i * 2, 1.5, -10);
+        statue.castShadow = true;
+        scene.add(statue);
+      }
+      const infoPos = new THREE.Vector3(2.6, 1.2, -1.5);
+      const infoGeom = new THREE.SphereGeometry(0.18, 12, 12);
+      const infoMat = new THREE.MeshStandardMaterial({ color: 0x2a9df4, emissive: 0x1a6fb2, metalness: 0.2, roughness: 0.6 });
+      const infoMesh = new THREE.Mesh(infoGeom, infoMat);
+      infoMesh.position.copy(infoPos);
+      infoMesh.castShadow = true;
+      scene.add(infoMesh);
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(255,255,255,0)';
+      ctx.fillRect(0, 0, 128, 128);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 90px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('i', 64, 70);
+      const spriteTex = new THREE.CanvasTexture(canvas);
+      const spriteMat = new THREE.SpriteMaterial({ map: spriteTex, transparent: true });
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.scale.set(0.6, 0.6, 1);
+      sprite.position.copy(infoPos).add(new THREE.Vector3(0, 0.45, 0));
+      scene.add(sprite);
+      const souvenir = new THREE.Mesh(
+        new THREE.BoxGeometry(0.28, 0.18, 0.28),
+        new THREE.MeshStandardMaterial({ color: 0xffcc00 })
+      );
+      souvenir.position.set(-2.2, 0.16, -0.8);
+      souvenir.castShadow = true;
+      souvenir.name = 'souvenir';
+      scene.add(souvenir);
+      const portal = new THREE.Mesh(
+        new THREE.TorusGeometry(0.9, 0.14, 16, 60),
+        new THREE.MeshStandardMaterial({ color: 0x1980ff, emissive: 0x104f80, metalness: 0.3, roughness: 0.2 })
+      );
+      portal.position.set(4.8, 1.0, -2);
+      portal.castShadow = false;
+      portal.name = 'portal';
+      scene.add(portal);
+      const skyGeo = new THREE.SphereGeometry(200, 32, 15);
+      const skyMat = new THREE.MeshBasicMaterial({ color: 0xbfeaff, side: THREE.BackSide });
+      const sky = new THREE.Mesh(skyGeo, skyMat);
+      scene.add(sky);
+      return {
+        scene,
+        infoPos,
+        portal,
+        souvenir,
+        audioTriggerPos: new THREE.Vector3(-0.8, 0.5, 2.6),
+        audioTriggerRadius: 3.0,
+        portalTriggerPos: portal.position.clone(),
+        portalTriggerRadius: 1.4,
+        infoMesh,
+        sprite,
+        infoText: '<b>Фонтан Треви</b><br>Барочный фонтан в Риме. Соберите сувенир и перейдите дальше.'
+      };
+    }
+
     // Инициализация сцен
     scenes.paris = createParisScene();
+    scenes.louvre = createLouvreScene();
     scenes.ny = createNYScene();
+    scenes.centralpark = createCentralParkScene();
     scenes.tokyo = createTokyoScene();
+    scenes.sensoji = createSensojiScene();
+    scenes.pyramids = createPyramidsScene();
+    scenes.sphinx = createSphinxScene();
+    scenes.colosseum = createColosseumScene();
+    scenes.trevi = createTreviScene();
     currentScene = scenes.paris;
     let souvenirPicked = false;
     let picks = 0;
@@ -590,15 +1255,31 @@
       currentScene = scenes[target];
       souvenirPicked = false;
       camera.position.set(0, 1.6, 8);
+      velocity.set(0, 0, 0); // Сбрасываем скорость при смене сцены
+      isGrounded = true; // Устанавливаем на землю
       locationName.textContent = {
         paris: 'Локация: Париж — Эйфелева башня',
+        louvre: 'Локация: Лувр',
         ny: 'Локация: Нью-Йорк — Таймс-сквер',
-        tokyo: 'Локация: Токио — Перекрёсток Сибуя'
+        centralpark: 'Локация: Центральный парк Нью-Йорка',
+        tokyo: 'Локация: Токио — Перекрёсток Сибуя',
+        sensoji: 'Локация: Храм Сензодзи',
+        pyramids: 'Локация: Пирамиды Гизы',
+        sphinx: 'Локация: Сфинкс',
+        colosseum: 'Локация: Колизей',
+        trevi: 'Локация: Фонтан Треви'
       }[target];
       startAmbientTone({
         paris: 220,
+        louvre: 230,
         ny: 260,
-        tokyo: 300
+        centralpark: 270,
+        tokyo: 300,
+        sensoji: 310,
+        pyramids: 340,
+        sphinx: 350,
+        colosseum: 380,
+        trevi: 390
       }[target]);
     }
 
@@ -618,7 +1299,10 @@
       if (intersects.length > 0) {
         const obj = intersects[0].object;
         if (obj.name === 'portal') {
-          switchScene(Object.keys(scenes)[(Object.keys(scenes).indexOf(currentScene === scenes.paris ? 'paris' : currentScene === scenes.ny ? 'ny' : 'tokyo') + 1) % 3]);
+          const keys = Object.keys(scenes);
+          const currentIndex = keys.indexOf(targetFromScene(currentScene));
+          const nextIndex = (currentIndex + 1) % keys.length;
+          switchScene(keys[nextIndex]);
         } else if (obj.name === 'souvenir' && !souvenirPicked) {
           currentScene.scene.remove(currentScene.souvenir);
           souvenirPicked = true;
@@ -631,8 +1315,17 @@
       if (audioContext && audioContext.state === 'suspended') audioContext.resume();
     });
 
+    function targetFromScene(sceneObj) {
+      const keys = Object.keys(scenes);
+      for (let key of keys) {
+        if (scenes[key] === sceneObj) return key;
+      }
+      return 'paris';
+    }
+
     // Анимация
     const clock = new THREE.Clock();
+    const gravity = -9.8; // Гравитация
     function animate() {
       requestAnimationFrame(animate);
       const delta = Math.min(0.1, clock.getDelta());
@@ -643,15 +1336,23 @@
       direction.z = Number(move.forward) - Number(move.back);
       direction.x = Number(move.right) - Number(move.left);
       direction.normalize();
-      const speed = 5.0;
+      const baseSpeed = 25.0;
+      const sprintMultiplier = move.sprint ? 1.5 : 1.0; // Ускорение при беге
+      const speed = baseSpeed * sprintMultiplier;
       if (move.forward || move.back) velocity.z -= direction.z * speed * delta;
       if (move.left || move.right) velocity.x -= direction.x * speed * delta;
       controls.moveRight(-velocity.x * delta);
       controls.moveForward(-velocity.z * delta);
 
-      // Ограничение высоты
+      // Прыжки и гравитация
       const pos = controls.getObject().position;
-      if (pos.y < 1.6) pos.y = 1.6;
+      velocity.y += gravity * delta; // Применяем гравитацию
+      pos.y += velocity.y * delta; // Обновляем позицию по Y
+      if (pos.y <= groundLevel) {
+        pos.y = groundLevel;
+        velocity.y = 0;
+        isGrounded = true; // Игрок на земле
+      }
 
       // Инфо-иконка
       const dInfo = pos.distanceTo(currentScene.infoPos);
